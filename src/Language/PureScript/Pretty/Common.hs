@@ -14,6 +14,7 @@ import Data.Text (Text)
 import qualified Data.Text as T
 
 import Language.PureScript.AST (SourcePos(..), SourceSpan(..))
+import Language.PureScript.CoreImp.AST
 import Language.PureScript.Parser.Lexer (isUnquotedKey)
 
 import Text.PrettyPrint.Boxes hiding ((<>))
@@ -108,10 +109,10 @@ addPos (SourcePos n m) (SourcePos 0 m') = SourcePos n (m+m')
 addPos (SourcePos n _) (SourcePos n' m') = SourcePos (n+n') m'
 
 
-data PrinterState = PrinterState { indent :: Int }
+data PrinterState = PrinterState { indent :: Int, path :: [AST] }
 
 emptyPrinterState :: PrinterState
-emptyPrinterState = PrinterState { indent = 0 }
+emptyPrinterState = PrinterState { indent = 0, path = [] }
 
 -- |
 -- Number of characters per identation level

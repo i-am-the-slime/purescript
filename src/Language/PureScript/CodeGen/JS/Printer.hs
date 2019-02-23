@@ -70,9 +70,11 @@ literals = mkPattern' match'
     ]
   match (Var _ ident) = return $ emit ident
   match (VariableIntroduction _ ident value) = mconcat <$> sequence
-    [ return $ emit $ "var " <> ident
+    [ return $ emit $ "const " <> ident
     , maybe (return mempty) (fmap (emit " = " <>) . prettyPrintJS') value
     ]
+  match (Import _ ident path) = return $ emit $ "import * as " <> ident <> " from " <> prettyPrintStringJS path
+  match (Export _ idents) = return $ emit $ "export {\n" <> intercalate ",\n" idents <> "\n}"
   match (Assignment _ target value) = mconcat <$> sequence
     [ prettyPrintJS' target
     , return $ emit " = "
@@ -170,6 +172,12 @@ lam = mkPattern match
   match (Function ss name args ret) = Just ((name, args, ss), ret)
   match _ = Nothing
 
+lam' :: Pattern PrinterState AST ((Maybe Text, [Text], Maybe SourceSpan), AST)
+lam' = mkPattern match
+  where
+  match (Arrow ss name args ret) = Just ((name, args, ss), ret)
+  match _ = Nothing
+
 app :: (Emit gen) => Pattern PrinterState AST (gen, AST)
 app = mkPattern' match
   where
@@ -220,11 +228,11 @@ prettyStatements sts = do
 -- | Generate a pretty-printed string representing a collection of JavaScript expressions at the same indentation level
 prettyPrintJSWithSourceMaps :: [AST] -> (Text, [SMap])
 prettyPrintJSWithSourceMaps js =
-  let StrPos (_, s, mp) = (fromMaybe (internalError "Incomplete pattern") . flip evalStateT (PrinterState 0) . prettyStatements) js
+  let StrPos (_, s, mp) = (fromMaybe (internalError "Incomplete pattern") . flip evalStateT (PrinterState 0 []) . prettyStatements) js
   in (s, mp)
 
 prettyPrintJS :: [AST] -> Text
-prettyPrintJS = maybe (internalError "Incomplete pattern") runPlainString . flip evalStateT (PrinterState 0) . prettyStatements
+prettyPrintJS = maybe (internalError "Incomplete pattern") runPlainString . flip evalStateT (PrinterState 0 []) . prettyStatements
 
 -- | Generate an indented, pretty-printed string representing a JavaScript expression
 prettyPrintJS' :: (Emit gen) => AST -> StateT PrinterState Maybe gen
@@ -243,6 +251,8 @@ prettyPrintJS' = A.runKleisli $ runPattern matchValue
                         <> fromMaybe "" name
                         <> "(" <> intercalate ", " args <> ") ")
                         <> ret ]
+                  , [ Wrap lam' $ \(_, args, ss) ret -> 
+                      addMapping' ss <> emit ("(" <> intercalate ", " args <> ") => ") <> ret ]
                   , [ unary     Not                  "!"
                     , unary     BitwiseNot           "~"
                     , unary     Positive             "+"

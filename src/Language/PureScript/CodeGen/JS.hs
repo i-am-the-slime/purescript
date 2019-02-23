@@ -66,9 +66,10 @@ moduleToJs (Module _ coms mn _ imps exps foreigns decls) foreign_ =
     let moduleBody = header : foreign' ++ jsImports ++ concat optimized
     let foreignExps = exps `intersect` foreigns
     let standardExps = exps \\ foreignExps
-    let exps' = AST.ObjectLiteral Nothing $ map (mkString . runIdent &&& AST.Var Nothing . identToJs) standardExps
-                               ++ map (mkString . runIdent &&& foreignIdent) foreignExps
-    return $ moduleBody ++ [AST.Assignment Nothing (accessorString "exports" (AST.Var Nothing "module")) exps']
+    -- let exps' = AST.ObjectLiteral Nothing $ map (mkString . runIdent &&& AST.Var Nothing . identToJs) standardExps
+    --                            ++ map (mkString . runIdent &&& foreignIdent) foreignExps
+    -- return $ moduleBody ++ [AST.Assignment Nothing (accessorString "exports" (AST.Var Nothing "module")) exps']
+    return $ moduleBody ++ [AST.Export Nothing (map runIdent standardExps)]
 
   where
 
@@ -103,9 +104,10 @@ moduleToJs (Module _ coms mn _ imps exps foreigns decls) foreign_ =
   importToJs :: M.Map ModuleName (Ann, ModuleName) -> ModuleName -> m AST
   importToJs mnLookup mn' = do
     let ((ss, _, _, _), mnSafe) = fromMaybe (internalError "Missing value in mnLookup") $ M.lookup mn' mnLookup
-    let moduleBody = AST.App Nothing (AST.Var Nothing "require")
-          [AST.StringLiteral Nothing (fromString (".." </> T.unpack (runModuleName mn') </> "index.js"))]
-    withPos ss $ AST.VariableIntroduction Nothing (moduleNameToJs mnSafe) (Just moduleBody)
+    -- let moduleBody = AST.App Nothing (AST.Var Nothing "require")
+    --       [AST.StringLiteral Nothing (fromString (".." </> T.unpack (runModuleName mn') </> "index.js"))]
+    -- withPos ss $ AST.VariableIntroduction Nothing (moduleNameToJs mnSafe) (Just moduleBody)
+    withPos ss $ AST.Import Nothing (moduleNameToJs mnSafe) (fromString (".." </> T.unpack (runModuleName mn') </> "index.js"))
 
   -- | Replaces the `ModuleName`s in the AST so that the generated code refers to
   -- the collision-avoiding renamed module imports.
@@ -204,7 +206,8 @@ moduleToJs (Module _ coms mn _ imps exps foreigns decls) foreign_ =
     let jsArg = case arg of
                   UnusedIdent -> []
                   _           -> [identToJs arg]
-    return $ AST.Function Nothing Nothing jsArg (AST.Block Nothing [AST.Return Nothing ret])
+    -- return $ AST.Function Nothing Nothing jsArg (AST.Block Nothing [AST.Return Nothing ret])
+    return $ AST.Arrow Nothing Nothing jsArg (AST.Block Nothing [AST.Return Nothing ret])
   valueToJs' e@App{} = do
     let (f, args) = unApp e []
     args' <- mapM valueToJs args

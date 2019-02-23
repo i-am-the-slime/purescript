@@ -64,8 +64,14 @@ data AST
   -- ^ An object literal
   | Function (Maybe SourceSpan) (Maybe Text) [Text] AST
   -- ^ A function introduction (optional name, arguments, body)
+  | Arrow (Maybe SourceSpan) (Maybe Text) [Text] AST
+  -- ^ An arrow function
   | App (Maybe SourceSpan) AST [AST]
   -- ^ Function application
+  | Import (Maybe SourceSpan) Text PSString
+  -- ^ An ES6 import statement (only supports `import * as Foo from "./foo"` syntax)
+  | Export (Maybe SourceSpan) [Text]
+  -- ^ An ES6 export statement (only suports `export { foo, bar, ... }` syntax)
   | Var (Maybe SourceSpan) Text
   -- ^ Variable
   | Block (Maybe SourceSpan) [AST]
@@ -109,7 +115,10 @@ withSourceSpan withSpan = go where
   go (Indexer _ j1 j2) = Indexer ss j1 j2
   go (ObjectLiteral _ js) = ObjectLiteral ss js
   go (Function _ name args j) = Function ss name args j
+  go (Arrow _ name args j) = Arrow ss name args j
   go (App _ j js) = App ss j js
+  go (Import _ ident path) = Import ss ident path
+  go (Export _ idents) = Export ss idents
   go (Var _ s) = Var ss s
   go (Block _ js) = Block ss js
   go (VariableIntroduction _ name j) = VariableIntroduction ss name j
@@ -136,7 +145,10 @@ getSourceSpan = go where
   go (Indexer ss _ _) = ss
   go (ObjectLiteral ss _) = ss
   go (Function ss _ _ _) = ss
+  go (Arrow ss _ _ _) = ss
   go (App ss _ _) = ss
+  go (Import ss _ _) = ss
+  go (Export ss _) = ss
   go (Var ss _) = ss
   go (Block ss _) = ss
   go (VariableIntroduction ss _ _) = ss
@@ -160,7 +172,10 @@ everywhere f = go where
   go (Indexer ss j1 j2) = f (Indexer ss (go j1) (go j2))
   go (ObjectLiteral ss js) = f (ObjectLiteral ss (map (fmap go) js))
   go (Function ss name args j) = f (Function ss name args (go j))
+  go (Arrow ss name args j) = f (Arrow ss name args (go j))
   go (App ss j js) = f (App ss (go j) (map go js))
+  go (Import ss ident path) = f (Import ss ident path)
+  go (Export ss idents) = f (Export ss idents)
   go (Block ss js) = f (Block ss (map go js))
   go (VariableIntroduction ss name j) = f (VariableIntroduction ss name (fmap go j))
   go (Assignment ss j1 j2) = f (Assignment ss (go j1) (go j2))
@@ -186,6 +201,7 @@ everywhereTopDownM f = f >=> go where
   go (Indexer ss j1 j2) = Indexer ss <$> f' j1 <*> f' j2
   go (ObjectLiteral ss js) = ObjectLiteral ss <$> traverse (sndM f') js
   go (Function ss name args j) = Function ss name args <$> f' j
+  go (Arrow ss name args j) = Arrow ss name args <$> f' j
   go (App ss j js) = App ss <$> f' j <*> traverse f' js
   go (Block ss js) = Block ss <$> traverse f' js
   go (VariableIntroduction ss name j) = VariableIntroduction ss name <$> traverse f' j
@@ -208,6 +224,7 @@ everything (<>.) f = go where
   go j@(Indexer _ j1 j2) = f j <>. go j1 <>. go j2
   go j@(ObjectLiteral _ js) = foldl (<>.) (f j) (map (go . snd) js)
   go j@(Function _ _ _ j1) = f j <>. go j1
+  go j@(Arrow _ _ _ j1) = f j <>. go j1
   go j@(App _ j1 js) = foldl (<>.) (f j <>. go j1) (map go js)
   go j@(Block _ js) = foldl (<>.) (f j) (map go js)
   go j@(VariableIntroduction _ _ (Just j1)) = f j <>. go j1
