@@ -250,6 +250,7 @@ getModuleDeclarations (Module _ _ _ declarations _) = declarations
 addDefaultImport :: Qualified ModuleName -> Module -> Module
 addDefaultImport (Qualified toImportAs toImport) m@(Module ss coms mn decls exps) =
   if isExistingImport `any` decls || mn == toImport then m
+  -- TODO: don't overwrite the source span in existing imports
   else Module ss coms mn (ImportDeclaration (ss, []) toImport Implicit toImportAs : decls) exps
   where
   isExistingImport (ImportDeclaration _ mn' _ as')

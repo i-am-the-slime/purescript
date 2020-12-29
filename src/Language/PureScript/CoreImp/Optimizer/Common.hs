@@ -14,11 +14,16 @@ import Language.PureScript.PSString (PSString)
 applyAll :: [a -> a] -> a -> a
 applyAll = foldl' (.) id
 
+-- identifier we want to replace -> AST node to replace it with -> current AST node we're looking at 
 replaceIdent :: Text -> AST -> AST -> AST
 replaceIdent var1 js = everywhere replace
   where
-  replace (Var _ var2) | var1 == var2 = js
-  replace other = other
+  replace v =
+    case v of
+      (Var _ var2) | var1 == var2 -> copySourceSpan v js
+      _ -> v
+  -- replace (Var _ var2) | var1 == var2 = js
+  -- replace other = other
 
 replaceIdents :: [(Text, AST)] -> AST -> AST
 replaceIdents vars = everywhere replace

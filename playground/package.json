@@ -1,0 +1,11 @@
+{
+  "name": "playground",
+  "version": "0.0.1",
+  "main": "index.js",
+  "license": "MIT",
+  "scripts": {
+    "clean": "rm -rf ./output/Main",
+    "build": "../.stack-work/install/x86_64-osx/lts-13.26/8.6.5/bin/purs compile -g sourcemaps \".spago/console/v4.4.0/src/**/*.purs\" \".spago/effect/v2.0.1/src/**/*.purs\" \".spago/prelude/v4.1.1/src/**/*.purs\" \".spago/psci-support/v4.0.0/src/**/*.purs\" \"src/**/*.purs\" \"test/**/*.purs\"",
+    "rebuild": "yarn clean && yarn build"
+  }
+}

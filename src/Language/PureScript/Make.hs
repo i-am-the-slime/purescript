@@ -48,6 +48,8 @@ import qualified Language.PureScript.CoreFn as CF
 import           System.Directory (doesFileExist)
 import           System.FilePath (replaceExtension)
 
+import Debug.Trace
+
 -- | Rebuild a single module.
 --
 -- This function is used for fast-rebuild workflows (PSCi and psc-ide are examples).
@@ -70,7 +72,9 @@ rebuildModule'
   -> [ExternsFile]
   -> Module
   -> m ExternsFile
-rebuildModule' MakeActions{..} exEnv externs m@(Module _ _ moduleName _ _) = do
+rebuildModule' MakeActions{..} exEnv externs m@(Module _ _ moduleName decls _) = do
+  traceM "\n\nrebuildModule'\n\n"
+  traceM $ (show decls)
   progress $ CompilingModule moduleName
   let env = foldl' (flip applyExternsFileToEnvironment) initEnvironment externs
       withPrim = importPrim m
@@ -87,11 +91,20 @@ rebuildModule' MakeActions{..} exEnv externs m@(Module _ _ moduleName _ _) = do
     desugarCaseGuards elaborated
 
   regrouped <- createBindingGroups moduleName . collapseBindingGroups $ deguarded
+
+  traceM $ ("\n\nregrouped = \n\n")
+  traceM $ (show regrouped)
+
+  traceM $ "\n\nbefore moduleToCoreFn\n\n"
+
   let mod' = Module ss coms moduleName regrouped exps
       corefn = CF.moduleToCoreFn env' mod'
       optimized = CF.optimizeCoreFn corefn
       [renamed] = renameInModules [optimized]
       exts = moduleToExternsFile mod' env'
+
+  traceM $ "\n\nafter moduleToCoreFn\n\n"
+
   ffiCodegen renamed
 
   -- It may seem more obvious to write `docs <- Docs.convertModule m env' here,
@@ -106,6 +119,9 @@ rebuildModule' MakeActions{..} exEnv externs m@(Module _ _ moduleName _ _) = do
                  "Failed to produce docs for " ++ T.unpack (runModuleName moduleName)
                  ++ "; details:\n" ++ prettyPrintMultipleErrors defaultPPEOptions errs
                Right d -> d
+
+  traceM $ ("\n\ncorefn.moduleImports = \n\n" ++ (show $ CF.moduleImports corefn))
+  traceM $ ("\n\nrenamed.moduleImports = \n\n" ++ (show $ CF.moduleImports renamed))
 
   evalSupplyT nextVar' $ codegen renamed docs exts
   return exts
@@ -128,10 +144,17 @@ make ma@MakeActions{..} ms = do
 
   let toBeRebuilt = filter (BuildPlan.needsRebuild buildPlan . getModuleName . CST.resPartial) sorted
   for_ toBeRebuilt $ \m -> fork $ do
+
+    let decls = getModuleDeclarations $ CST.resPartial m
+    let sss = map declSourceSpan decls
+    traceM $ "\n\nmake : source spans for decls\n"
+    traceM $ show sss
+
     let moduleName = getModuleName . CST.resPartial $ m
     let deps = fromMaybe (internalError "make: module not found in dependency graph.") (lookup moduleName graph)
     buildModule buildPlan moduleName
       (spanName . getModuleSourceSpan . CST.resPartial $ m)
+      -- TODO: check the output of import Prim to see if that's what's messing with the source spans
       (importPrim <$> CST.resFull m)
       (deps `inOrderOf` map (getModuleName . CST.resPartial) sorted)
 
@@ -199,8 +222,15 @@ make ma@MakeActions{..} ms = do
 
   buildModule :: BuildPlan -> ModuleName -> FilePath -> Either (NEL.NonEmpty CST.ParserError) Module -> [ModuleName] -> m ()
   buildModule buildPlan moduleName fp mres deps = do
+    traceM "\n\nbuildModule\n\n"
     result <- flip catchError (return . BuildJobFailed) $ do
       m <- CST.unwrapParserError fp mres
+
+      let decls = getModuleDeclarations m
+      let sss = map declSourceSpan decls
+      traceM $ "\n\nbuildModule : source spans for decls\n"
+      traceM $ show sss
+    
       -- We need to wait for dependencies to be built, before checking if the current
       -- module should be rebuilt, so the first thing to do is to wait on the
       -- MVars for the module's dependencies.

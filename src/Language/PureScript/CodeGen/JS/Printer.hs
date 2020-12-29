@@ -24,6 +24,8 @@ import Language.PureScript.Crash
 import Language.PureScript.Pretty.Common
 import Language.PureScript.PSString (PSString, decodeString, prettyPrintStringJS)
 
+import Debug.Trace
+
 -- TODO (Christoph): Get rid of T.unpack / pack
 
 literals :: (Emit gen) => Pattern PrinterState AST gen

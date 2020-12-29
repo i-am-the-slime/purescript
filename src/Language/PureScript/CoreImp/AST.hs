@@ -124,6 +124,10 @@ withSourceSpan withSpan = go where
   go (InstanceOf _ j1 j2) = InstanceOf ss j1 j2
   go (Comment _ com j) = Comment ss com j
 
+copySourceSpan :: AST -> AST -> AST
+copySourceSpan (Var ss _) (Var _ s) = Var ss s
+copySourceSpan _ to = to
+
 getSourceSpan :: AST -> Maybe SourceSpan
 getSourceSpan = go where
   go :: AST -> Maybe SourceSpan

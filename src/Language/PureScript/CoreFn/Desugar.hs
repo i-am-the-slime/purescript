@@ -30,23 +30,35 @@ import Language.PureScript.PSString (mkString)
 import qualified Language.PureScript.AST as A
 import qualified Language.PureScript.Constants as C
 
+import Debug.Trace
+
 -- | Desugars a module from AST to CoreFn representation.
 moduleToCoreFn :: Environment -> A.Module -> Module Ann
 moduleToCoreFn _ (A.Module _ _ _ _ Nothing) =
   internalError "Module exports were not elaborated before moduleToCoreFn"
-moduleToCoreFn env (A.Module modSS coms mn decls (Just exps)) =
-  let imports = mapMaybe importToCoreFn decls ++ fmap (ssAnn modSS,) (findQualModules decls)
+moduleToCoreFn env (A.Module modSS coms mn decls (Just exps)) = do
+  -- TODO: rewrite dedupImports by preferring those from mapMaybe importToCoreFn decls
+  let importDecls = (mapMaybe importToCoreFn decls)
+  let moreImportDecls = fmap (ssAnn modSS,) (findQualModules decls)
+
+  -- reverse the order of the import decls since fromListWith adds entries in reverse order
+  let imports = moreImportDecls ++ importDecls
       imports' = dedupeImports imports
       exps' = ordNub $ concatMap exportToCoreFn exps
       externs = ordNub $ mapMaybe externToCoreFn decls
       decls' = concatMap declToCoreFn decls
-  in Module modSS coms mn (spanName modSS) imports' exps' externs decls'
-
+  Module modSS coms mn (spanName modSS) imports' exps' externs decls'
   where
 
   -- | Remove duplicate imports
   dedupeImports :: [(Ann, ModuleName)] -> [(Ann, ModuleName)]
-  dedupeImports = fmap swap . M.toList . M.fromListWith const . fmap swap
+  dedupeImports imports = do
+    traceM "dedupeImports"
+    let swapped = fmap swap imports
+    let map' = M.fromListWith const swapped
+    let list = M.toList (traceShow map' map')
+    let unswapped = fmap swap list
+    unswapped
 
   ssA :: SourceSpan -> Ann
   ssA ss = (ss, [], Nothing, Nothing)

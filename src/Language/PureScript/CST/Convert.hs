@@ -36,6 +36,8 @@ import qualified Language.PureScript.Types as T
 import Language.PureScript.CST.Positions
 import Language.PureScript.CST.Types
 
+import Debug.Trace
+
 comment :: Comment a -> Maybe C.Comment
 comment = \case
   Comment t
@@ -573,6 +575,7 @@ convertImportDecl fileName decl@(ImportDecl _ _ modName mbNames mbQual) = do
           then AST.Hiding imps'
           else AST.Explicit imps'
   (ann, nameValue modName, importTy, nameValue . snd <$> mbQual)
+  -- ((traceShow ann ann), nameValue modName, importTy, nameValue . snd <$> mbQual)
 
 convertImport :: String -> Import a -> AST.DeclarationRef
 convertImport fileName imp = case imp of
@@ -632,6 +635,7 @@ convertModule fileName module'@(Module _ _ modName exps _ imps decls _) = do
     decls' = convertDeclaration fileName =<< decls
     exps' = map (convertExport fileName) . toList . wrpValue <$> exps
   uncurry AST.Module ann (nameValue modName) (imps' <> decls') exps'
+  -- uncurry AST.Module ann (nameValue modName) ((traceShow imps' imps') <> decls') exps'
   where
   importCtr (a, b, c, d) = AST.ImportDeclaration a b c d
 
